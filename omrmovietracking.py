@@ -1,7 +1,8 @@
 #!/usr/bin/python -tt
 
 """
-SCRIPT RUNNING NOTES, WILL ADD SOMEDAY
+OMR tracking script based off of highspeedmovieanalysis_Updated.py. Used this script to generate colored tracked lines of multiple fish in a single well for 
+the optomotor response image. Modified script components from https://github.com/larrylegend33/PreycapMaster were used to determine individual fish during tracking.
 """
 
 # IMPORT NECESSARY MODULES
@@ -27,7 +28,7 @@ numberofcols = 1
 xdim = 1088
 ydim = 660
 
-class Para:
+class Fish:
     def __init__(self, timestmp, coord):
         self.location = [coord]
         self.lastcoord = coord
@@ -37,9 +38,9 @@ class Para:
         self.color = [random.randint(0,255), random.randint(0,255), random.randint(0,255)]
         self.completed = False
         self.waitindex = 0
-        # waits at max 4 frames before giving up on particular para.
+        # waits at max 4 frames before giving up on particular fish.
         self.waitmax = 4
-        # max distance between para in consecutive frames in xy or xz vector space.
+        # max distance between fish in consecutive frames in xy or xz vector space.
         self.maxthresh = 9
         self.minthresh = 0
         self.double = False
@@ -50,7 +51,7 @@ class Para:
         self.completed = True
 
     def nearby(self, contlist):
-        #first, search the list of contours found in the image to see if any of them are near the previous position of this Para.
+        #first, search the list of contours found in the image to see if any of them are near the previous position of this Fish.
         # pcoords = [[ind, crd] for ind, crd in enumerate(contlist)
         #            if np.sqrt(
         #                np.dot((self.lastcoord[0] - crd[0], self.lastcoord[
@@ -58,7 +59,7 @@ class Para:
         #                        0], self.lastcoord[1] - crd[1]))) < self.thresh]
        # print("worked")
         if len(contlist) == 0:
-            pcoords = np.array([])
+            fcoords = np.array([])
         else:
             cont_arr = np.array(contlist)
             lastc = np.reshape(self.lastcoord, (1, 2))
@@ -69,16 +70,16 @@ class Para:
         
 #if there's nothing found, add 1 to the waitindex, and say current position is the last position
 
-        if pcoords.shape[0] == 0:
+        if fcoords.shape[0] == 0:
             self.location.append(self.lastcoord)
             if self.waitindex == self.waitmax:
-                #end record if you've gone 'waitmax' frames without finding anything. this value greatly changes things. its a delicate balance between losing the para and waiting too long while another para enters
+                #end record if you've gone 'waitmax' frames without finding anything. this value greatly changes things. its a delicate balance between losing the fish and waiting too long while another i enters
                 self.endrecord()
             self.waitindex += 1
 
-# this case is only one contour is within the threshold distance to this Para.
-        elif pcoords.shape[0] == 1:
-            newcoord = pcoords[0]
+# this case is only one contour is within the threshold distance to this Fish.
+        elif fcoords.shape[0] == 1:
+            newcoord = fcoords[0]
            # print(tuple(newcoord))
             lastcoord = list(self.lastcoord)
             distance =  math.sqrt((newcoord[0]-lastcoord[0])*(newcoord[0]-lastcoord[0]) + (newcoord[1]-lastcoord[1])*(newcoord[1]-lastcoord[1]))
@@ -112,7 +113,7 @@ parser = argparse.ArgumentParser(description='loading for fish behavior files')
 parser.add_argument('-c', type=str, action="store", dest="centroidfile")
 parser.add_argument('-m', type=str, action="store", dest="moviefile")
 #parser.add_argument('-e', type=str, action="store", dest="eventsfile")
-args = parser.parse_args()
+args = arser.parse_args()
 centroidfile = args.centroidfile
 videoStream = args.moviefile
 #eventsfile = args.eventsfile
@@ -560,7 +561,7 @@ def main(pixThreshold,frameRate,videoStream):
     frame_roi = []
    # storedImage = cv2.cvtColor(e*255, cv2.COLOR_GRAY2BGR)
     completed_t = []
-    p_t = []
+    f_t = []
     while(cap.isOpened()):
         ret,frame = cap.read()
         if ret == False:
@@ -574,28 +575,28 @@ def main(pixThreshold,frameRate,videoStream):
         diff.dtype = np.uint8
         contours,hierarchy = cv2.findContours(diff, cv2.RETR_TREE,cv2.CHAIN_APPROX_NONE)
         area = 20
-        parafilter_top = []
+        fishfilter_top = []
         for t in contours:
             if area <= cv2.contourArea(t) < 200:
                (x,y), r = cv2.minEnclosingCircle(t)
                center = (int(x),int(y))
-               parafilter_top.append(center)
-       # parafiltertop = [cv2.minEnclosingCircle(t)[0] for t in contours if area <= cv2.contourArea(t) < 50]
+               fishfilter_top.append(center)
+       # fishfiltertop = [cv2.minEnclosingCircle(t)[0] for t in contours if area <= cv2.contourArea(t) < 50]
         if i == 0:
-           p_t = [Para(i, pr) for pr in parafilter_top]
+           f_t = [Fish(i, fish) for fish in fishfilter_top]
           # print([pr.location for pr in p_t])
-           number_of_colors = len(p_t)
+           number_of_colors = len(f_t)
         else:
-           for n in p_t:
-               n.nearby(parafilter_top)
-           newpara_t = [Para(i, cord) for cord in parafilter_top]
+           for n in f_t:
+               n.nearby(fishfilter_top)
+           newfish_t = [Fish(i, cord) for cord in fishfilter_top]
            #if i == 1:
-             # print([pr.location for pr in newpara_t])
-          # print(len(newpara_t))
-           p_t = p_t + newpara_t
-           xy_complete = list(filter(lambda x: x.completed, p_t))
+             # print([pr.location for pr in newfish_t])
+          # print(len(newfish_t))
+           f_t = f_t + newfish_t
+           xy_complete = list(filter(lambda x: x.completed, f_t))
            completed_t = completed_t + xy_complete
-           p_t = list(filter(lambda x: not x.completed, p_t))
+           f_t = list(filter(lambda x: not x.completed, f_t))
        # if i == 100:
         #   cv2.imwrite(videoStream + '_frame_' + str(i) + ".png", frame)
        # if i == 284:
@@ -676,14 +677,14 @@ def main(pixThreshold,frameRate,videoStream):
         i += 1
    # print(len(p_t))
     all_xy = []
-    all_xy = completed_t + p_t
+    all_xy = completed_t + f_t
     all_xy = sorted(all_xy, key=lambda x: len(x.location))
     all_xy.reverse()
     for n in all_xy:
         n.calcdistance()
        # print(n.totaldistance)
         print(n.displacement)
-    all_xy = [para for para in all_xy if para.timestamp + len(para.location) > 745 and int(para.displacement) > 10]
+    all_xy = [fish for fish in all_xy if fish.timestamp + len(fish.location) > 745 and int(fish.displacement) > 10]
     
     myFrameNumber = 749
     cap = cv2.VideoCapture(videoStream)
@@ -708,9 +709,9 @@ def main(pixThreshold,frameRate,videoStream):
    # fig,ax = plt.subplots(1)
   #  ax.set_aspect('equal')
   #  ax.axis('off')
-    for i,para in enumerate(all_xy):
-      #  print(para.location)
-        xylist = [list(num) for num in para.location]
+    for i,fish in enumerate(all_xy):
+      #  print(fish.location)
+        xylist = [list(num) for num in fish.location]
         newlist = []
         newlist.append(xylist[0])
         for j in range(0,len(xylist)-1):
@@ -726,7 +727,7 @@ def main(pixThreshold,frameRate,videoStream):
         palette = sns.cubehelix_palette(n_colors=6, start=num, rot=0, gamma=0.3, hue=0.8, light=1, dark=0, reverse=False, as_cmap=True)
        # palette = sns.light_palette((r, g, b), n_colors=1, reverse=False, as_cmap=True)
         plt.scatter(xlist,ylist, s=6, c=list(range(0,len(newlist))), cmap=palette)
-       # for j,num in para.location:
+       # for j,num in fish.location:
         #    print(type(j))
         #    coord = list(num)
         #    plt.scatter(coord[0],coord[1], s=1, cmap=palette
